@@ -5,10 +5,188 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+
+/* ===================== ENUMS ===================== */
+
+enum UserRole {
+  CLIENT
+  EMPLOYEE
+  ADMIN
+}
+
+enum RoomStatus {
+  AVAILABLE
+  OCCUPIED
+}
+
+enum RoomTypeEnum {
+  SINGLE
+  DOUBLE
+  SUITE
+}
+
+enum ReservationStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  BANK_TRANSFER
+}
+
+/* ===================== USER ===================== */
+
+model User {
+  id_user      Int      @id @default(autoincrement())
+  nom          String
+  prenom       String
+  email        String   @unique
+  telephone    String?
+  mot_de_passe String
+  role         UserRole
+  created_at   DateTime @default(now())
+
+  client   Client?
+  employee Employee?
+
+  @@index([role])
+}
+
+/* ===================== CLIENT ===================== */
+
+model Client {
+  id_client        Int      @id @default(autoincrement())
+  id_user          Int      @unique
+  date_inscription DateTime @default(now())
+
+  user         User        @relation(fields: [id_user], references: [id_user])
+  reservations Reservation[]
+
+  @@index([id_user])
+}
+
+/* ===================== EMPLOYEE ===================== */
+
+model Employee {
+  id_employee   Int      @id @default(autoincrement())
+  id_user       Int      @unique
+  salaire       Float
+  date_embauche DateTime
+
+  user         User         @relation(fields: [id_user], references: [id_user])
+  payments     Payment[]
+  reservations Reservation[] @relation("ValidatedBy")
+
+  @@index([id_user])
+}
+
+/* ===================== ROOM TYPE ===================== */
+
+model RoomType {
+  id_type     Int          @id @default(autoincrement())
+  nom_type    RoomTypeEnum @unique
+  description String?
+
+  rooms Room[]
+}
+
+/* ===================== ROOM ===================== */
+
+model Room {
+  id_room        Int        @id @default(autoincrement())
+  numero         String
+  etage          Int
+  prix_par_nuit  Float
+  statut         RoomStatus
+  created_at     DateTime   @default(now())
+
+  id_type   Int
+  roomType RoomType @relation(fields: [id_type], references: [id_type])
+
+  reservations ReservationRoom[]
+
+  @@index([statut])
+  @@index([id_type])
+  @@index([numero])
+}
+
+/* ===================== RESERVATION ===================== */
+
+model Reservation {
+  id_reservation Int      @id @default(autoincrement())
+  id_client      Int
+  date_debut     DateTime
+  date_fin       DateTime
+  statut         ReservationStatus
+
+  client Client @relation(fields: [id_client], references: [id_client])
+
+  rooms    ReservationRoom[]
+  payments Payment[]
+  invoice  Invoice?
+
+  validated_by Int?
+  validator   Employee? @relation("ValidatedBy", fields: [validated_by], references: [id_employee])
+
+  @@index([id_client])
+  @@index([statut])
+  @@index([date_debut, date_fin])
+  @@index([validated_by])
+}
+
+/* ===== Junction Table: Reservation <-> Room ===== */
+
+model ReservationRoom {
+  id_reservation Int
+  id_room        Int
+
+  reservation Reservation @relation(fields: [id_reservation], references: [id_reservation])
+  room         Room        @relation(fields: [id_room], references: [id_room])
+
+  @@id([id_reservation, id_room])
+  @@index([id_room])
+}
+
+/* ===================== PAYMENT ===================== */
+
+model Payment {
+  id_payment     Int      @id @default(autoincrement())
+  id_reservation Int
+  montant        Float
+  methode        PaymentMethod
+  date_payment   DateTime @default(now())
+
+  received_by Int?
+  employee    Employee?   @relation(fields: [received_by], references: [id_employee])
+
+  reservation Reservation @relation(fields: [id_reservation], references: [id_reservation])
+
+  @@index([id_reservation])
+  @@index([received_by])
+  @@index([methode])
+}
+
+/* ===================== INVOICE ===================== */
+
+model Invoice {
+  id_invoice     Int      @id @default(autoincrement())
+  id_reservation Int      @unique
+  total          Float
+  date_facture   DateTime @default(now())
+
+  reservation Reservation @relation(fields: [id_reservation], references: [id_reservation])
+
+  @@index([date_facture])
 }
