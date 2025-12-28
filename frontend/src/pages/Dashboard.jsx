@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BedDouble, CalendarCheck, Users, DollarSign, UserPlus } from 'lucide-react';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { OccupancyChart } from '@/components/dashboard/OccupancyChart';
@@ -10,25 +10,122 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
 
+const API_BASE_URL = 'http://localhost:5000';
+
 const Dashboard = () => {
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [dashboardStats, setDashboardStats] = useState({
+    totalRooms: 0,
+    todayCheckins: 0,
+    activeGuests: 0,
+    todayRevenue: 0
+  });
   const [userForm, setUserForm] = useState({
-    name: '',
-    surname: '',
+    nom: '',
+    prenom: '',
     email: '',
-    phone: '',
-    password: '',
+    telephone: '',
+    mot_de_passe: '',
     role: ''
   });
 
-  const handleAddUser = () => {
-    if (!userForm.name || !userForm.surname || !userForm.email || !userForm.password || !userForm.role) {
-      toast({ title: 'Error', description: 'Please fill in all required fields', variant: 'destructive' });
+  // Fetch dashboard stats (optional - if you have this endpoint)
+  useEffect(() => {
+    fetchDashboardStats();
+  }, []);
+
+  const fetchDashboardStats = async () => {
+    try {
+      // You might want to create a separate endpoint for dashboard stats
+      // For now, I'll keep the static data
+      const response = await fetch(`${API_BASE_URL}/dashboard/stats`);
+      if (response.ok) {
+        const data = await response.json();
+        setDashboardStats(data);
+      }
+    } catch (error) {
+      console.error('Error fetching dashboard stats:', error);
+    }
+  };
+
+  const handleAddUser = async () => {
+    // Validate required fields
+    if (!userForm.nom || !userForm.prenom || !userForm.email || !userForm.mot_de_passe || !userForm.role) {
+      toast({ 
+        title: 'Error', 
+        description: 'Please fill in all required fields', 
+        variant: 'destructive' 
+      });
       return;
     }
-    toast({ title: 'Success', description: `User ${userForm.name} ${userForm.surname} added successfully` });
-    setUserForm({ name: '', surname: '', email: '', phone: '', password: '', role: '' });
-    setIsAddUserOpen(false);
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(userForm.email)) {
+      toast({ 
+        title: 'Error', 
+        description: 'Please enter a valid email address', 
+        variant: 'destructive' 
+      });
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/users`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          // Add authorization header if needed
+          // 'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          nom: userForm.nom,
+          prenom: userForm.prenom,
+          email: userForm.email,
+          telephone: userForm.telephone || null,
+          mot_de_passe: userForm.mot_de_passe,
+          role: userForm.role
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to add user');
+      }
+
+      toast({ 
+        title: 'Success', 
+        description: `User ${data.prenom} ${data.nom} added successfully` 
+      });
+
+      // Reset form and close dialog
+      setUserForm({ 
+        nom: '', 
+        prenom: '', 
+        email: '', 
+        telephone: '', 
+        mot_de_passe: '', 
+        role: '' 
+      });
+      setIsAddUserOpen(false);
+
+      // Optional: Refresh dashboard data
+      fetchDashboardStats();
+
+    } catch (error) {
+      console.error('Error adding user:', error);
+      toast({ 
+        title: 'Error', 
+        description: error.message || 'Failed to add user. Please try again.', 
+        variant: 'destructive' 
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -52,21 +149,23 @@ const Dashboard = () => {
             <div className="space-y-4 mt-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Name *</Label>
+                  <Label htmlFor="nom">Last Name *</Label>
                   <Input
-                    id="name"
-                    placeholder="John"
-                    value={userForm.name}
-                    onChange={(e) => setUserForm({ ...userForm, name: e.target.value })}
+                    id="nom"
+                    placeholder="Doe"
+                    value={userForm.nom}
+                    onChange={(e) => setUserForm({ ...userForm, nom: e.target.value })}
+                    disabled={isLoading}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="surname">Surname *</Label>
+                  <Label htmlFor="prenom">First Name *</Label>
                   <Input
-                    id="surname"
-                    placeholder="Doe"
-                    value={userForm.surname}
-                    onChange={(e) => setUserForm({ ...userForm, surname: e.target.value })}
+                    id="prenom"
+                    placeholder="John"
+                    value={userForm.prenom}
+                    onChange={(e) => setUserForm({ ...userForm, prenom: e.target.value })}
+                    disabled={isLoading}
                   />
                 </div>
               </div>
@@ -78,47 +177,64 @@ const Dashboard = () => {
                   placeholder="john.doe@email.com"
                   value={userForm.email}
                   onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
+                  disabled={isLoading}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="phone">Phone Number</Label>
+                <Label htmlFor="telephone">Phone Number</Label>
                 <Input
-                  id="phone"
+                  id="telephone"
                   type="tel"
                   placeholder="+1 234 567 890"
-                  value={userForm.phone}
-                  onChange={(e) => setUserForm({ ...userForm, phone: e.target.value })}
+                  value={userForm.telephone}
+                  onChange={(e) => setUserForm({ ...userForm, telephone: e.target.value })}
+                  disabled={isLoading}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">Password *</Label>
+                <Label htmlFor="mot_de_passe">Password *</Label>
                 <Input
-                  id="password"
+                  id="mot_de_passe"
                   type="password"
                   placeholder="••••••••"
-                  value={userForm.password}
-                  onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
+                  value={userForm.mot_de_passe}
+                  onChange={(e) => setUserForm({ ...userForm, mot_de_passe: e.target.value })}
+                  disabled={isLoading}
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="role">Role *</Label>
-                <Select value={userForm.role} onValueChange={(value) => setUserForm({ ...userForm, role: value })}>
+                <Select 
+                  value={userForm.role} 
+                  onValueChange={(value) => setUserForm({ ...userForm, role: value })}
+                  disabled={isLoading}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select a role" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="customer">Customer</SelectItem>
-                    <SelectItem value="employee">Employee</SelectItem>
+                    <SelectItem value="ADMIN">Admin</SelectItem>
+                    <SelectItem value="CLIENT">Customer</SelectItem>
+                    <SelectItem value="EMPLOYEE">Employee</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="flex gap-3 pt-4">
-                <Button variant="outline" className="flex-1" onClick={() => setIsAddUserOpen(false)}>
+                <Button 
+                  variant="outline" 
+                  className="flex-1" 
+                  onClick={() => setIsAddUserOpen(false)}
+                  disabled={isLoading}
+                >
                   Cancel
                 </Button>
-                <Button variant="gold" className="flex-1" onClick={handleAddUser}>
-                  Add User
+                <Button 
+                  variant="gold" 
+                  className="flex-1" 
+                  onClick={handleAddUser}
+                  disabled={isLoading}
+                >
+                  {isLoading ? 'Adding...' : 'Add User'}
                 </Button>
               </div>
             </div>
@@ -129,7 +245,7 @@ const Dashboard = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
           title="Total Rooms"
-          value={120}
+          value={dashboardStats.totalRooms || 120}
           subtitle="15 types available"
           icon={BedDouble}
           variant="default"
@@ -137,7 +253,7 @@ const Dashboard = () => {
         />
         <StatCard
           title="Today's Check-ins"
-          value={24}
+          value={dashboardStats.todayCheckins || 24}
           icon={CalendarCheck}
           trend={{ value: 12, isPositive: true }}
           variant="gold"
@@ -145,7 +261,7 @@ const Dashboard = () => {
         />
         <StatCard
           title="Active Guests"
-          value={89}
+          value={dashboardStats.activeGuests || 89}
           subtitle="Across all rooms"
           icon={Users}
           variant="success"
@@ -153,7 +269,7 @@ const Dashboard = () => {
         />
         <StatCard
           title="Today's Revenue"
-          value="$12,450"
+          value={`$${(dashboardStats.todayRevenue || 12450).toLocaleString()}`}
           icon={DollarSign}
           trend={{ value: 8, isPositive: true }}
           variant="warning"

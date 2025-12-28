@@ -9,13 +9,13 @@ import { ReservationsModule } from './reservations/reservations.module';
 import { PaymentsModule } from './payments/payments.module';
 import { InvoicesModule } from './invoices/invoices.module';
 import { AuthModule } from './auth/auth.module';
-import { ClientController } from './client/client.controller';
-import { EmployeeController } from './employee/employee.controller';
-import { InvoiecController } from './invoiec/invoiec.controller';
-import { InvoiceController } from './invoice/invoice.controller';
+import { ClientsController } from './clients/clients.controller';
+import { EmployeesController } from './employees/employees.controller'
+import { InvoicesController } from './invoices/invoices.controller';
+
 
 @Module({
   imports: [PrismaModule, UsersModule, ClientsModule, EmployeesModule, RoomTypesModule, RoomsModule, ReservationsModule, PaymentsModule, InvoicesModule, AuthModule],
-  controllers: [ClientController, EmployeeController, InvoiecController, InvoiceController],
+  controllers: [ClientsController, EmployeesController, InvoicesController],
 })
 export class AppModule {}
