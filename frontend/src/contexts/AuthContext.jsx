@@ -43,7 +43,7 @@ const login = async (email, password) => {
   const register = async (name, email, password) => {
     if (name && email && password) {
       const mockUser = {
-        id: Date.now().toString(),
+        id: 4,
         email,
         name,
         role: 'admin'

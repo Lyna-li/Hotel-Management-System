@@ -82,7 +82,7 @@ export class ReservationsService {
 
     // Check employee exists
     const employee = await this.prisma.employee.findUnique({
-      where: { id_employee: employeeId },
+      where: { id_user: employeeId },
     });
     if (!employee) throw new Error('Employee not found');
 
@@ -93,7 +93,7 @@ export class ReservationsService {
         where: { id_reservation: reservationId },
         data: {
           statut: ReservationStatus.CONFIRMED,
-          validated_by: employeeId,
+          validated_by: employee.id_employee,
         },
       });
 

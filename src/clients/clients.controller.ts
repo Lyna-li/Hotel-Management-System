@@ -27,6 +27,14 @@ export class ClientsController {
   async getAllClients() {
     return await this.clientsService.getAllClients();
   }
+  @Get('client/:userId')
+  async getClientByUserId(@Param('userId', ParseIntPipe) userId: number) {
+  try {
+    return await this.clientsService.getClientByUserId(userId);
+  } catch (error) {
+    throw new HttpException(error.message, HttpStatus.NOT_FOUND);
+  }
+}
 
   @Get(':id')
   async getClientById(@Param('id', ParseIntPipe) id: number) {
@@ -36,4 +44,5 @@ export class ClientsController {
     }
     return client;
   }
+  
 }

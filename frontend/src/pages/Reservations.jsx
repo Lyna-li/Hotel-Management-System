@@ -32,7 +32,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-
+import { useAuth } from '@/contexts/AuthContext';
 const API_BASE_URL = 'http://localhost:5000'
 
 // Map Prisma status to frontend status
@@ -101,7 +101,7 @@ const Reservations = () => {
     todaysCheckouts: 0,
     totalReservations: 0
   })
-
+  const { user } = useAuth();
   // New reservation form state
   const [newReservation, setNewReservation] = useState({
     id_client: '',
@@ -239,7 +239,7 @@ const Reservations = () => {
       const clientsWithDetails = await Promise.all(
         clientUsers.map(async (user) => {
           try {
-            const clientResponse = await fetch(`${API_BASE_URL}/users/${user.id_user}`)
+            const clientResponse = await fetch(`${API_BASE_URL}/clients/client/${user.id_user}`)
             if (clientResponse.ok) {
               const clientData = await clientResponse.json()
               return {
@@ -444,10 +444,11 @@ const Reservations = () => {
           'Content-Type': 'application/json',
         },
         body: method === 'DELETE' ? undefined : JSON.stringify({
-          employeeId: 1 // You should get this from user session
+          employeeId: user?.id // You should get this from user session
         })
       })
-      
+      console.log('Update Status Response:', response)
+      console.log('user id:', user.id)
       if (!response.ok) {
         const data = await response.json()
         throw new Error(data.message || 'Failed to update reservation status')
@@ -561,7 +562,7 @@ const Reservations = () => {
                     </SelectTrigger>
                     <SelectContent>
                       {clients.map((client) => (
-                        <SelectItem key={client.id_user} value={client.id_user.toString()}>
+                        <SelectItem key={client.id_client} value={client.id_client.toString()}>
                           <div className="flex items-center gap-2">
                             <User className="w-4 h-4" />
                             <span>{client.name}</span>

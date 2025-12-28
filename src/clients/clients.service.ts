@@ -55,6 +55,23 @@ export class ClientsService {
     });
   }
 
+  async getClientByUserId(id_user: number) {
+  const client = await this.prisma.client.findUnique({
+    where: { id_user },
+    include: {
+      user: {
+        select: this.safeUserSelect,
+      },
+    },
+  });
+
+  if (!client) {
+    throw new Error('Client record not found for this user');
+  }
+
+  return client;
+ }
+
   async getAllClients() {
     return this.prisma.client.findMany({
       include: {
