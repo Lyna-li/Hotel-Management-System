@@ -24,7 +24,7 @@ enum UserRole {
 
 enum RoomStatus {
   AVAILABLE
-  OCCUPIED
+  OUT_OF_SERVICE
 }
 
 enum RoomTypeEnum {
@@ -44,6 +44,13 @@ enum PaymentMethod {
   CASH
   CARD
   BANK_TRANSFER
+  ONLINE
+}
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
 }
 
 /* ===================== USER ===================== */
@@ -130,6 +137,7 @@ model Reservation {
   date_debut     DateTime
   date_fin       DateTime
   statut         ReservationStatus
+  created_at DateTime @default(now())
 
   client Client @relation(fields: [id_client], references: [id_client])
 
@@ -167,12 +175,13 @@ model Payment {
   montant        Float
   methode        PaymentMethod
   date_payment   DateTime @default(now())
-
+  status          PaymentStatus @default(PENDING)
+  transactionRef  String?
   received_by Int?
   employee    Employee?   @relation(fields: [received_by], references: [id_employee])
 
   reservation Reservation @relation(fields: [id_reservation], references: [id_reservation])
-
+  @@index([status])
   @@index([id_reservation])
   @@index([received_by])
   @@index([methode])

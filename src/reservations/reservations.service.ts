@@ -104,7 +104,7 @@ export class ReservationsService {
 
       await tx.room.updateMany({
         where: { id_room: { in: rooms.map((r) => r.id_room) } },
-        data: { statut: RoomStatus.OCCUPIED },
+        data: { statut: RoomStatus.OUT_OF_SERVICE },
       });
 
       return updatedReservation;

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { PaymentMethod } from '@prisma/client';
+import { PaymentMethod, PaymentStatus } from '@prisma/client';
 
 @Injectable()
 export class PaymentsService {
@@ -21,29 +21,40 @@ export class PaymentsService {
     id_reservation: number;
     montant: number;
     methode: PaymentMethod;
-    received_by?: number; // employee ID
+    received_by?: number;
+    transactionRef?: string;
   }) {
-    // Step 1: Check reservation exists
     const reservation = await this.prisma.reservation.findUnique({
       where: { id_reservation: data.id_reservation },
-      include: { invoice: true, client: { include: { user: true } } },
+      include: {
+        invoice: true,
+        client: { include: { user: true } },
+        payments: true,
+      },
     });
-    if (!reservation) throw new Error('Reservation not found');
 
-    // Step 2: Check reservation status
+    if (!reservation) throw new Error('Reservation not found');
     if (reservation.statut === 'CANCELLED') {
       throw new Error('Cannot pay for a cancelled reservation');
     }
-
-    // Step 3: Check amount is positive
     if (data.montant <= 0) throw new Error('Payment amount must be positive');
 
-    // Step 4: Optionally check against invoice total
-    if (reservation.invoice && data.montant > reservation.invoice.total) {
-      throw new Error('Payment amount exceeds invoice total');
+    // Calculate total already paid
+    const totalPaid = reservation.payments.reduce(
+      (sum, p) => (p.status === 'SUCCESS' ? sum + p.montant : sum),
+      0,
+    );
+
+    // Check against invoice if exists
+    if (reservation.invoice) {
+      const remaining = reservation.invoice.total - totalPaid;
+      if (data.montant > remaining) {
+        throw new Error(
+          `Payment exceeds remaining balance. Remaining: ${remaining}`,
+        );
+      }
     }
 
-    // Step 5: Optional: check employee exists if received_by provided
     if (data.received_by) {
       const employee = await this.prisma.employee.findUnique({
         where: { id_employee: data.received_by },
@@ -51,41 +62,91 @@ export class PaymentsService {
       if (!employee) throw new Error('Receiving employee not found');
     }
 
-    // Step 6: Create payment
+    // Determine initial status based on payment method
+    const initialStatus = this.getInitialPaymentStatus(data.methode);
+
     return this.prisma.payment.create({
       data: {
         id_reservation: data.id_reservation,
         montant: data.montant,
         methode: data.methode,
+        status: initialStatus,
         received_by: data.received_by,
+        transactionRef: data.transactionRef,
       },
       include: {
         reservation: {
           include: {
-            client: {
-              include: {
-                user: { select: this.safeUserSelect },
-              },
-            },
+            client: { include: { user: { select: this.safeUserSelect } } },
+            invoice: true,
           },
         },
-        employee: true,
+        employee: { include: { user: { select: this.safeUserSelect } } },
       },
     });
   }
 
+  // ---------------- UPDATE PAYMENT STATUS ----------------
+  async updatePaymentStatus(
+    id_payment: number,
+    status: PaymentStatus,
+    transactionRef?: string,
+  ) {
+    const payment = await this.prisma.payment.findUnique({
+      where: { id_payment },
+      include: { reservation: { include: { payments: true, invoice: true } } },
+    });
+
+    if (!payment) throw new Error('Payment not found');
+
+    const updated = await this.prisma.payment.update({
+      where: { id_payment },
+      data: {
+        status,
+        transactionRef: transactionRef || payment.transactionRef,
+      },
+      include: {
+        reservation: { include: { payments: true, invoice: true } },
+      },
+    });
+
+    // Auto-update reservation status if fully paid
+    if (status === 'SUCCESS') {
+      await this.checkAndUpdateReservationStatus(updated.reservation);
+    }
+
+    return updated;
+  }
+
   // ---------------- GET PAYMENTS ----------------
-  async getAllPayments() {
+  async getAllPayments(filters?: {
+    status?: PaymentStatus;
+    methode?: PaymentMethod;
+    fromDate?: Date;
+    toDate?: Date;
+  }) {
+    const where: any = {};
+
+    if (filters?.status) where.status = filters.status;
+    if (filters?.methode) where.methode = filters.methode;
+    if (filters?.fromDate || filters?.toDate) {
+      where.date_payment = {};
+      if (filters.fromDate) where.date_payment.gte = filters.fromDate;
+      if (filters.toDate) where.date_payment.lte = filters.toDate;
+    }
+
     return this.prisma.payment.findMany({
+      where,
       include: {
         reservation: {
           include: {
-            client: { select: this.safeUserSelect },
+            client: { include: { user: { select: this.safeUserSelect } } },
             rooms: { include: { room: true } },
           },
         },
-        employee: true,
+        employee: { include: { user: { select: this.safeUserSelect } } },
       },
+      orderBy: { date_payment: 'desc' },
     });
   }
 
@@ -93,10 +154,17 @@ export class PaymentsService {
     const payment = await this.prisma.payment.findUnique({
       where: { id_payment },
       include: {
-        reservation: { include: { client: { select: this.safeUserSelect } } },
-        employee: true,
+        reservation: {
+          include: {
+            client: { include: { user: { select: this.safeUserSelect } } },
+            invoice: true,
+            payments: true,
+          },
+        },
+        employee: { include: { user: { select: this.safeUserSelect } } },
       },
     });
+
     if (!payment) throw new Error('Payment not found');
     return payment;
   }
@@ -105,34 +173,81 @@ export class PaymentsService {
     return this.prisma.payment.findMany({
       where: { id_reservation },
       include: {
-        employee: true,
-        reservation: { include: { client: { select: this.safeUserSelect } } },
+        employee: { include: { user: { select: this.safeUserSelect } } },
+        reservation: {
+          include: {
+            client: { include: { user: { select: this.safeUserSelect } } },
+            invoice: true,
+          },
+        },
       },
+      orderBy: { date_payment: 'desc' },
     });
+  }
+
+  async getPaymentsByClient(id_client: number) {
+    return this.prisma.payment.findMany({
+      where: { reservation: { id_client } },
+      include: {
+        reservation: { include: { invoice: true } },
+        employee: { include: { user: { select: this.safeUserSelect } } },
+      },
+      orderBy: { date_payment: 'desc' },
+    });
+  }
+
+  // ---------------- PAYMENT SUMMARY ----------------
+  async getReservationPaymentSummary(id_reservation: number) {
+    const reservation = await this.prisma.reservation.findUnique({
+      where: { id_reservation },
+      include: { payments: true, invoice: true },
+    });
+
+    if (!reservation) throw new Error('Reservation not found');
+
+    const totalPaid = reservation.payments
+      .filter((p) => p.status === 'SUCCESS')
+      .reduce((sum, p) => sum + p.montant, 0);
+
+    const totalPending = reservation.payments
+      .filter((p) => p.status === 'PENDING')
+      .reduce((sum, p) => sum + p.montant, 0);
+
+    const invoiceTotal = reservation.invoice?.total || 0;
+    const remaining = invoiceTotal - totalPaid;
+
+    return {
+      id_reservation,
+      invoiceTotal,
+      totalPaid,
+      totalPending,
+      remaining,
+      isFullyPaid: remaining <= 0 && invoiceTotal > 0,
+      payments: reservation.payments,
+    };
   }
 
   // ---------------- UPDATE PAYMENT ----------------
   async updatePayment(
     id_payment: number,
-    data: Partial<{ montant: number; methode: PaymentMethod }>,
+    data: Partial<{
+      montant: number;
+      methode: PaymentMethod;
+      transactionRef: string;
+    }>,
   ) {
     const payment = await this.prisma.payment.findUnique({
       where: { id_payment },
       include: { reservation: true },
     });
+
     if (!payment) throw new Error('Payment not found');
 
-    // Prevent updating payments for confirmed or completed reservations
-    if (
-      payment.reservation &&
-      ['CONFIRMED', 'COMPLETED'].includes(payment.reservation.statut)
-    ) {
-      throw new Error(
-        'Cannot update payment linked to a confirmed or completed reservation',
-      );
+    // Only allow updates for pending or failed payments
+    if (!['PENDING', 'FAILED'].includes(payment.status)) {
+      throw new Error('Can only update pending or failed payments');
     }
 
-    // Validate amount
     if (data.montant !== undefined && data.montant <= 0) {
       throw new Error('Payment amount must be positive');
     }
@@ -140,6 +255,35 @@ export class PaymentsService {
     return this.prisma.payment.update({
       where: { id_payment },
       data,
+      include: {
+        reservation: { include: { invoice: true } },
+        employee: { include: { user: { select: this.safeUserSelect } } },
+      },
+    });
+  }
+
+  // ---------------- REFUND PAYMENT ----------------
+  async refundPayment(id_payment: number, refund_by?: number) {
+    const payment = await this.prisma.payment.findUnique({
+      where: { id_payment },
+      include: { reservation: true },
+    });
+
+    if (!payment) throw new Error('Payment not found');
+    if (payment.status !== 'SUCCESS') {
+      throw new Error('Can only refund successful payments');
+    }
+
+    return this.prisma.payment.update({
+      where: { id_payment },
+      data: {
+        status: 'REFUNDED',
+        received_by: refund_by || payment.received_by,
+      },
+      include: {
+        reservation: { include: { invoice: true } },
+        employee: { include: { user: { select: this.safeUserSelect } } },
+      },
     });
   }
 
@@ -149,17 +293,86 @@ export class PaymentsService {
       where: { id_payment },
       include: { reservation: true },
     });
+
     if (!payment) throw new Error('Payment not found');
 
-    if (
-      payment.reservation &&
-      ['CONFIRMED', 'COMPLETED'].includes(payment.reservation.statut)
-    ) {
-      throw new Error(
-        'Cannot delete payment linked to a confirmed or completed reservation',
-      );
+    // Only allow deletion of pending or failed payments
+    if (!['PENDING', 'FAILED'].includes(payment.status)) {
+      throw new Error('Can only delete pending or failed payments');
     }
 
     return this.prisma.payment.delete({ where: { id_payment } });
+  }
+
+  // ---------------- HELPER METHODS ----------------
+  private getInitialPaymentStatus(methode: PaymentMethod): PaymentStatus {
+    switch (methode) {
+      case 'CASH':
+      case 'CARD':
+        return 'SUCCESS'; // Immediate confirmation
+      case 'BANK_TRANSFER':
+      case 'ONLINE':
+        return 'PENDING'; // Requires verification
+      default:
+        return 'PENDING';
+    }
+  }
+
+  private async checkAndUpdateReservationStatus(reservation: any) {
+    if (!reservation.invoice) return;
+
+    const totalPaid = reservation.payments
+      .filter((p: any) => p.status === 'SUCCESS')
+      .reduce((sum: number, p: any) => sum + p.montant, 0);
+
+    if (
+      totalPaid >= reservation.invoice.total &&
+      reservation.statut === 'PENDING'
+    ) {
+      await this.prisma.reservation.update({
+        where: { id_reservation: reservation.id_reservation },
+        data: { statut: 'CONFIRMED' },
+      });
+    }
+  }
+
+  // ---------------- REPORTS ----------------
+  async getPaymentStatistics(fromDate?: Date, toDate?: Date) {
+    const where: any = {};
+    if (fromDate || toDate) {
+      where.date_payment = {};
+      if (fromDate) where.date_payment.gte = fromDate;
+      if (toDate) where.date_payment.lte = toDate;
+    }
+
+    const payments = await this.prisma.payment.findMany({ where });
+
+    const byStatus = payments.reduce(
+      (acc, p) => {
+        acc[p.status] = (acc[p.status] || 0) + 1;
+        return acc;
+      },
+      {} as Record<PaymentStatus, number>,
+    );
+
+    const byMethod = payments.reduce(
+      (acc, p) => {
+        acc[p.methode] = (acc[p.methode] || 0) + 1;
+        return acc;
+      },
+      {} as Record<PaymentMethod, number>,
+    );
+
+    const totalRevenue = payments
+      .filter((p) => p.status === 'SUCCESS')
+      .reduce((sum, p) => sum + p.montant, 0);
+
+    return {
+      totalPayments: payments.length,
+      totalRevenue,
+      byStatus,
+      byMethod,
+      averagePayment: payments.length > 0 ? totalRevenue / payments.length : 0,
+    };
   }
 }
