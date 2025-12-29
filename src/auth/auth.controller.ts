@@ -79,6 +79,6 @@ const employee = await this.employeesService.createEmployee({
       body.mot_de_passe,
     );
     // Generate JWT token (you can implement JwtService here)
-    return { user, token: 'JWT_TOKEN_HERE' };
+    return { user, token: '' };
   }
 }

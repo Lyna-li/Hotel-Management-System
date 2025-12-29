@@ -10,18 +10,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
 
+
 const API_BASE_URL = 'http://localhost:5000';
 
 const Dashboard = () => {
-  const [isAddUserOpen, setIsAddUserOpen] = useState(false);
+   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [dashboardStats, setDashboardStats] = useState({
     totalRooms: 0,
     todayCheckins: 0,
     activeGuests: 0,
-    todayRevenue: 0
-  });
-  const [userForm, setUserForm] = useState({
+    todayRevenue: 0,
+  }); 
+
+    const [userForm, setUserForm] = useState({
     nom: '',
     prenom: '',
     email: '',
@@ -30,24 +32,57 @@ const Dashboard = () => {
     role: ''
   });
 
-  // Fetch dashboard stats (optional - if you have this endpoint)
   useEffect(() => {
-    fetchDashboardStats();
+    fetchStats();
   }, []);
 
-  const fetchDashboardStats = async () => {
+  const fetchStats = async () => {
     try {
-      // You might want to create a separate endpoint for dashboard stats
-      // For now, I'll keep the static data
-      const response = await fetch(`${API_BASE_URL}/dashboard/stats`);
-      if (response.ok) {
-        const data = await response.json();
-        setDashboardStats(data);
-      }
+      // Fetch rooms
+      const roomsRes = await fetch(`${API_BASE_URL}/rooms`);
+      const rooms = await roomsRes.json();
+
+      // Fetch reservations
+      const reservationsRes = await fetch(`${API_BASE_URL}/reservations`);
+      const reservations = await reservationsRes.json();
+
+
+      // Fetch payments (for revenue)
+      const paymentsRes = await fetch(`${API_BASE_URL}/payments`);
+      const payments = await paymentsRes.json();
+
+      // Total rooms
+      const totalRooms = rooms.length;
+
+      // Today's check-ins (assuming reservation.date_debut is ISO string)
+      const today = new Date().toISOString().slice(0, 10);
+      const todayCheckins = reservations.filter(r => r.date_debut && r.date_debut.slice(0, 10) === today).length;
+
+      // Active guests (count reservations where today is between date_debut and date_fin)
+      const activeGuests = reservations.filter(r => {
+        const start = new Date(r.date_debut);
+        const end = new Date(r.date_fin);
+        const now = new Date();
+        return start <= now && end >= now;
+      }).length;
+
+      // Today's revenue (sum payments for today)
+      const todayRevenue = payments
+        .filter(p => p.date && p.date.slice(0, 10) === today)
+        .reduce((sum, p) => sum + (p.amount || p.montant || 0), 0);
+
+      setDashboardStats({
+        totalRooms,
+        todayCheckins,
+        activeGuests,
+        todayRevenue,
+      });
     } catch (error) {
       console.error('Error fetching dashboard stats:', error);
     }
   };
+
+
 
   const handleAddUser = async () => {
     // Validate required fields
@@ -78,8 +113,7 @@ const Dashboard = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          // Add authorization header if needed
-          // 'Authorization': `Bearer ${token}`,
+
         },
         body: JSON.stringify({
           nom: userForm.nom,
@@ -243,9 +277,9 @@ const Dashboard = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard
+              <StatCard
           title="Total Rooms"
-          value={dashboardStats.totalRooms || 120}
+          value={dashboardStats.totalRooms}
           subtitle="15 types available"
           icon={BedDouble}
           variant="default"
@@ -253,15 +287,15 @@ const Dashboard = () => {
         />
         <StatCard
           title="Today's Check-ins"
-          value={dashboardStats.todayCheckins || 24}
+          value={dashboardStats.todayCheckins}
           icon={CalendarCheck}
-          trend={{ value: 12, isPositive: true }}
+          trend={{ value: dashboardStats.todayCheckins, isPositive: true }}
           variant="gold"
           delay={50}
         />
         <StatCard
           title="Active Guests"
-          value={dashboardStats.activeGuests || 89}
+          value={dashboardStats.activeGuests}
           subtitle="Across all rooms"
           icon={Users}
           variant="success"
@@ -269,9 +303,9 @@ const Dashboard = () => {
         />
         <StatCard
           title="Today's Revenue"
-          value={`$${(dashboardStats.todayRevenue || 12450).toLocaleString()}`}
+          value={`$${(dashboardStats.todayRevenue || 0).toLocaleString()}`}
           icon={DollarSign}
-          trend={{ value: 8, isPositive: true }}
+          trend={{ value: dashboardStats.todayRevenue, isPositive: true }}
           variant="warning"
           delay={150}
         />

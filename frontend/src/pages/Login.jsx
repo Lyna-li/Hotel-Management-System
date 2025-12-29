@@ -32,7 +32,18 @@ const Login = () => {
           title: "Welcome back",
           description: "You are now logged in to the system",
         });
-        navigate("/dashboard");
+        if (success) {
+  const userRole = success.user?.role; 
+  console.log(success); 
+  console.log(userRole);
+  if (userRole === 'ADMIN') {
+    navigate('/dashboard');
+  } else if (userRole === 'EMPLOYEE') {
+    // navigate('/employee');
+  } else if (userRole === 'CLIENT') {
+    navigate('/');
+  } 
+}
       } else {
         toast({
           title: "Login failed",

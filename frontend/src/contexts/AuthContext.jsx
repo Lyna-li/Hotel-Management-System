@@ -26,16 +26,15 @@ export const AuthProvider = ({ children }) => {
 const login = async (email, password) => {
   try {
     const res = await AuthAPI.login(email, password);
-
-    const { user, token } = res.data;
+    const { user, token } = res; // <-- res, not res.data
 
     localStorage.setItem('hms_user', JSON.stringify(user));
     localStorage.setItem('hms_token', token);
 
     setUser(user);
-    return true;
+    return { user, token }; 
   } catch (error) {
-    return false;
+    return null; 
   }
 };
 

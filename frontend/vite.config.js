@@ -8,5 +8,8 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, 'src'),
     },
+      proxy: {
+      '/auth': 'http://localhost:5000', // your backend URL
+    },
   },
 })

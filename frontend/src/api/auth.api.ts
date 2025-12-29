@@ -1,15 +1,18 @@
-import api from 'axios';
+import api from './axios.ts';
+
+
 
 export const AuthAPI = {
   // -------- LOGIN --------
-  login: (email: string, mot_de_passe: string) => {
-    return api.post('/auth/login', {
+  login: async (email: string, mot_de_passe: string) => {
+    const res = await api.post('/auth/login', {
       email,
       mot_de_passe,
     });
+    return res.data;
   },
 
-  // -------- CLIENT SIGNUP --------
+  // -------- CLIENT SIGNUP -------
   signupClient: (data: {
     nom: string;
     prenom: string;
