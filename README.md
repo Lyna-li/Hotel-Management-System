@@ -1,98 +1,297 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# 🚀 Hotel Management System
+> A backend application demonstrating Object-Relational Mapping (ORM) concepts by building a custom ORM from scratch in TypeScript/Nest.js ,for a comprehensive Hotel Management System. This project handles user authentication, multi-role management (Clients/Employees), room inventory, and complex booking/payment flows.
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+---
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## ⚡ Features
 
-## Description
+* **Multi-Role Authentication:** Support for `CLIENT`, `EMPLOYEE`, and `ADMIN`.
+* **Dynamic Room Management:** Flexible room types (Single, Double, Suite) and real-time status tracking.
+* **Reservation Lifecycle:** Full booking workflow from `PENDING` to `COMPLETED`.
+* **Financial Tracking:** Integrated payment records and automatic invoice generation.
+* **Role-Based Access:** Validations linked to specific employees for accountability.
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## 🛠 Tech Stack
 
-## Project setup
+* **Database:** PostgreSQL (Compatible with MySQL/SQLite)
+* **Backend:**  TypeScript/nest.js
+* **Frontend:** React
 
-```bash
-$ npm install
+
+## 🗄 Database Design
+
+
+```mermaid
+
+erDiagram
+    %% Inheritance / Specialization
+    USER ||--o| CLIENT : "is a"
+    USER ||--o| EMPLOYEE : "is a"
+
+    %% Enums Links (Visual representation)
+    USER }|--|| USERROLE : "has"
+    ROOM }|--|| STATUS : "is"
+    ROOM }|--|| TYPE_SALLE : "type"
+    RESERVATION }|--|| RESERVATIONSTATUS : "marked as"
+    PAYMENT }|--|| PAYMENTMETHOD : "paid via"
+
+    %% Main Relationships
+    ROOM_TYPE ||--|{ ROOM : "defines"
+    CLIENT ||--o{ RESERVATION : "makes"
+    EMPLOYEE ||--o{ RESERVATION : "validates"
+    EMPLOYEE ||--o{ PAYMENT : "receives"
+    RESERVATION ||--|{ ROOM : "includes"
+    RESERVATION ||--|| INVOICE : "generates"
+    RESERVATION ||--|{ PAYMENT : "contains"
+
+    USER {
+        int id_user PK
+        string nom
+        string prenom
+        string email
+        string telephone
+        string mot_de_passe
+        enum userRole
+        datetime created_at
+    }
+
+    CLIENT {
+        int id_client PK
+        int id_user FK
+        datetime date_inscription
+    }
+
+    EMPLOYEE {
+        int id_employee PK
+        int id_user FK
+        float salaire
+        datetime date_embauche
+    }
+
+    ROOM {
+        int id_room PK
+        string numero
+        int etage
+        float prix_par_nuit
+        enum statut
+        datetime created_at
+    }
+
+    RESERVATION {
+        int id_reservation PK
+        int id_client FK
+        datetime date_debut
+        datetime date_fin
+        enum statut
+        int validated_by FK
+    }
+
+    PAYMENT {
+        int id_payment PK
+        int id_reservation FK
+        float montant
+        enum methode
+        datetime date_payment
+        int received_by FK
+    }
+
+    INVOICE {
+        int id_invoice PK
+        int id_reservation FK
+        float total
+        datetime date_facture
+    }
+
 ```
 
-## Compile and run the project
 
-```bash
-# development
-$ npm run start
+```mermaid
+graph LR
+    subgraph Actors
+        C[Client]
+        E[Employé]
+        A[Admin]
+    end
 
-# watch mode
-$ npm run start:dev
+    subgraph "Système de Gestion Hôtelière"
+        %% Client Features
+        UC1(Gestion de compte client)
+        UC1_a(Cree compte)
+        UC1_b(Se connecter)
+        UC2(Gestion des réservations)
+        UC3(Effectuer un paiement)
+        UC4(Consulter ses factures)
+        
+        %% Employee Features
+        UC5(Gestion des réservations)
+        UC5_a(Confirmer / refuser)
+        UC5_b(Consulter)
+        UC6(Gestion des factures)
+        UC7(Gérer l'état des chambres)
+        UC10(Effecter Paiement)
+        
+        %% Admin Features
+        UC8(Gestion des comptes employés)
+        UC9(Paramétrer le système)
+        UC9_a(Définir les chambres)
+        UC9_b(Définir les tarifs)
 
-# production mode
-$ npm run start:prod
+        %% Internal Relationships
+        UC1 -.->|include| UC1_a
+        UC1_b -.->|extends| UC1
+
+      
+        
+        UC5 -.->|include| UC5_a
+        UC5 -.->|include| UC5_b
+        
+        UC5_a -.->|extends| UC7
+        
+        UC9 -.->|include| UC9_a
+        UC9 -.->|include| UC9_b
+    end
+
+    %% Actor Connections
+    C --> UC1
+    C --> UC2
+    C --> UC3
+    C --> UC4
+
+    E --> UC5
+    E --> UC6
+    E --> UC7
+    E -->UC10
+
+    A --> UC8
+    A --> UC9
+
 ```
 
-## Run tests
 
-```bash
-# unit tests
-$ npm run test
+## 📁 Project Structure
 
-# e2e tests
-$ npm run test:e2e
 
-# test coverage
-$ npm run test:cov
+ ```bash
+├── Frontend/
+├── prisma/
+│   └── schema.Prisma
+    └── schema.prisma
+├── src/
+│   ├── controllers/
+│   ├── services/
+│   ├── routes/
+│   ├── auth/
+│   ├── clients/
+│   ├── employees/
+│   ├── invoices/
+|   |── payments/
+│   |── revérvation/
+│   |── room-types/
+│   |── room/
+│   |── scripts/
+│   |── users/
+│   └── main.ts
+├── .env
+
+├── package.json
+└── README.md
+
+
 ```
 
-## Deployment
+## 🧠 Theoretical Background
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+##  Object-Relational Mapping (ORM)
+ **What is an ORM?**
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+**ORM**  (Object-Relational Mapping) is a programming technique that facilitates interaction between an object-oriented programming language and a relational database.
 
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+Instead of writing raw SQL queries, ORM allows developers to interact with the database using objects, classes, and methods that are native to the programming language.
+The ORM automatically translates these operations into database-specific queries.
+
+This abstraction reduces complexity and improves developer productivity while preserving data consistency.
+
+## 🎭 What Happens Behind the Scenes
+
+** Query generation**
+
+Instead of manually writing a SQL query such as:
+```sql
+SELECT * FROM users WHERE age > 18;
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+The developer writes a more intuitive, object-oriented instruction, for example:
+```md
+User.objects.filter(age > 18)
+```
+The ORM translates this instruction into the appropriate SQL (or database-specific) query automatically.
 
-## Resources
+## Execution
+Once the query is generated, the ORM:
 
-Check out a few resources that may come in handy when working with NestJS:
+* Manages the database connection
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+* Sends the query to the database
 
-## Support
+* Handles execution and error management
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+This removes the need for developers to manually manage low-level database operations.
 
-## Stay in touch
+##  Mapping: From Database Results to Objects
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+After execution, the database returns results in a tabular format (rows and columns).
+The ORM maps these results back into application-level objects, allowing developers to work with structured data instead of raw rows.
 
-## License
+This process is known as object **mapping**.
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+##  Relationship Management
+ORMs understand and manage relationships between entities, such as:
+
+**One-to-One**
+
+**One-to-Many**
+
+**Many-to-Many**
+
+For example, when retrieving a user and their related posts, the ORM automatically generates the required JOIN operations and returns the associated objects without the developer writing complex SQL joins manually.
+
+
+##  Caching
+To improve performance, many ORMs implement caching mechanisms.
+Frequently accessed data can be temporarily stored in memory, reducing repeated database queries and improving response time.
+
+
+## Indexing Strategy & Performance
+
+Indexes are used to optimize frequent queries and enforce constraints.
+
+### Why indexing matters
+In relational databases, searching without indexes leads to full table scans,
+which become expensive as data grows.
+
+### Indexing decisions in this project
+
+- `User.role`
+  - Used frequently for role-based access control
+  - Indexed to speed up authorization checks
+
+- `Reservation(statut)`
+  - Allows fast filtering of reservations (PENDING, CONFIRMED, COMPLETED)
+
+- `Reservation(date_debut, date_fin)`
+  - Optimizes availability checks for rooms over date ranges
+
+- Foreign Keys (`id_user`, `id_client`, `validated_by`)
+  - Improve JOIN performance between related entities
+
+### Trade-offs
+Indexes improve read performance but slightly slow down writes.
+This trade-off is acceptable since hotel systems are read-heavy.
+
+### ⚠️ N+1 Query Problem
+
+One common ORM performance issue is the N+1 query problem,
+where fetching related entities results in multiple unnecessary queries.
+
