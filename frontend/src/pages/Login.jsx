@@ -17,50 +17,46 @@ const Login = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
-  }
+  
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setIsLoading(true);
+  e.preventDefault();
+  setIsLoading(true);
 
-    try {
-      const success = await login(email, password);
-      if (success) {
-        toast({
-          title: "Welcome back",
-          description: "You are now logged in to the system",
-        });
-        if (success) {
-  const userRole = success.user?.role; 
-  console.log(success); 
-  console.log(userRole);
-  if (userRole === 'ADMIN') {
-    navigate('/dashboard');
-  } else if (userRole === 'EMPLOYEE') {
-    // navigate('/employee');
-  } else if (userRole === 'CLIENT') {
-    navigate('/');
-  } 
-}
-      } else {
-        toast({
-          title: "Login failed",
-          description: "Invalid email or password",
-          variant: "destructive",
-        });
-      }
-    } catch {
+  try {
+    const result = await login(email, password);
+    if (result && result.user) {
       toast({
-        title: "Error",
-        description: "Something went wrong. Please try again",
+        title: "Welcome back",
+        description: "You are now logged in to the system",
+      });
+      const userRole = result.user.role;
+      console.log(result);
+      console.log(userRole);
+      if (userRole === 'ADMIN') {
+        navigate('/dashboard');
+      } else if (userRole === 'EMPLOYEE') {
+        // navigate('/employee');
+      } else if (userRole === 'CLIENT') {
+        navigate('/');
+      }
+    } else {
+      toast({
+        title: "Login failed",
+        description: "Invalid email or password",
         variant: "destructive",
       });
-    } finally {
-      setIsLoading(false);
     }
-  };
+  } catch {
+    toast({
+      title: "Error",
+      description: "Something went wrong. Please try again",
+      variant: "destructive",
+    });
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   return (
     <div className="min-h-screen flex">
